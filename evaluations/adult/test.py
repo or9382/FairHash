@@ -1,12 +1,10 @@
 import os
-import time
-from contextlib import contextmanager
 
 import numpy as np
 import pandas as pd
 
 from algorithms import create_cdf_hash_function, create_ranking_hash_function, create_cut_hash_function
-from utils import get_bucket_group_matrix, calculate_pairwise_fairness_list, calculate_epsilon
+from evaluations.evaluation import measure_time, test
 
 csv_path = os.path.join(os.path.dirname(__file__), r'dataset\adult.data')
 
@@ -32,14 +30,6 @@ def prepare_data():
     females = adult.loc[adult['sex'] == 'Female'][['fnlwgt', 'age']].values.tolist()
 
     return males, females
-
-
-def measure_time(function, *args, **kwargs):
-    start_time = time.perf_counter()
-    res = function(*args, **kwargs)
-    end_time = time.perf_counter()
-
-    return res, end_time - start_time
 
 
 def train():
@@ -82,24 +72,6 @@ def train():
     print(f"CDF: {cdf_epsilon=}; {cdf_preprocesing=}; {cdf_query_time=}")
     print(f"cut: {cut_epsilon=}; {cut_preprocessing=}; {cut_query_time=}")
     print(f"rank 100: {rank_100_epsilon=}; {rank_100_preprocessing=}; {rank_100_query_time=}")
-
-
-def test(hash_function, points, buckets_amount, group_lengths):
-    def query():
-        buckets = {i: [] for i in range(buckets_amount)}
-
-        for p in points:
-            buckets[hash_function(p[0])].append(p)
-
-        return buckets
-
-    buckets, query_time = measure_time(query)
-
-    a = get_bucket_group_matrix(list(list(bucket) for bucket in buckets.values()), group_lengths)
-    fairness = calculate_pairwise_fairness_list(a, group_lengths)
-    epsilon = calculate_epsilon(fairness, buckets_amount)
-
-    return epsilon, query_time / len(points)
 
 
 if __name__ == '__main__':
