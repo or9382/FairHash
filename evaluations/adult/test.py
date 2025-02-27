@@ -32,7 +32,7 @@ def prepare_data():
     return males, females
 
 
-def train():
+def adult_test():
     bucket_amount = 5
 
     males, females = prepare_data()
@@ -42,7 +42,7 @@ def train():
     combined = males + females
     np.random.shuffle(combined)
 
-    cdf_hash, cdf_preprocesing = measure_time(
+    cdf_hash, cdf_preprocessing = measure_time(
         create_cdf_hash_function,
         combined,
         bucket_amount
@@ -69,10 +69,10 @@ def train():
     cut_epsilon, cut_query_time = test(cut_hash, combined, bucket_amount, [len(males), len(females)])
     rank_100_epsilon, rank_100_query_time = test(rank_100_hash, combined, bucket_amount, [len(males), len(females)])
 
-    print(f"CDF: {cdf_epsilon=}; {cdf_preprocesing=}; {cdf_query_time=}")
+    print(f"CDF: {cdf_epsilon=}; {cdf_preprocessing=}; {cdf_query_time=}")
     print(f"cut: {cut_epsilon=}; {cut_preprocessing=}; {cut_query_time=}")
     print(f"rank 100: {rank_100_epsilon=}; {rank_100_preprocessing=}; {rank_100_query_time=}")
 
 
 if __name__ == '__main__':
-    train()
+    adult_test()

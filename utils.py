@@ -3,7 +3,7 @@ import numpy as np
 
 # Calculate the projection of a point onto a vector
 def calculate_projection(vector: np.ndarray, point: np.ndarray):
-    return np.dot(vector, point) / np.linalg.norm(vector)
+    return np.dot(vector, point)
 
 
 # Calculate the angle from the positive x-axis for the given vector

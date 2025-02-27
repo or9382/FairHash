@@ -29,8 +29,6 @@ def compute_linear_ranking_functions(tagged_points):
         except np.linalg.LinAlgError:
             continue  # Skip if singular matrix (parallel lines)
 
-        vector /= np.linalg.norm(vector)
-
         smaller_angle = get_vector_with_slightly_smaller_angle(vector)
         if calculate_projection(smaller_angle, p1) < calculate_projection(smaller_angle, p2):
             intersections.append(((p1, t1), (p2, t2), vector))
