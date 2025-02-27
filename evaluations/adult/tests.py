@@ -1,10 +1,12 @@
 import os
+import time
+from contextlib import contextmanager
 
 import numpy as np
 import pandas as pd
 
 from algorithms import create_cdf_hash_function, create_ranking_hash_function, create_cut_hash_function
-
+from utils import get_bucket_group_matrix, calculate_pairwise_fairness_list, calculate_epsilon
 
 csv_path = os.path.join(os.path.dirname(__file__), r'dataset\adult.data')
 
@@ -24,7 +26,7 @@ def prepare_data():
     adult['age'] = (age - age.min()) / (age.max() - age.min())
     adult['fnlwgt'] = (fnlwgt - fnlwgt.min()) / (fnlwgt.max() - fnlwgt.min())
 
-    adult = adult.drop_duplicates(subset=['age', 'fnlwgt'])
+    adult = adult.drop_duplicates(subset=['fnlwgt']).sample(frac=1, random_state=42).reset_index(drop=True)
 
     males = adult.loc[adult['sex'] == 'Male'][['fnlwgt', 'age']].values.tolist()
     females = adult.loc[adult['sex'] == 'Female'][['fnlwgt', 'age']].values.tolist()
@@ -32,30 +34,72 @@ def prepare_data():
     return males, females
 
 
+def measure_time(function, *args, **kwargs):
+    start_time = time.perf_counter()
+    res = function(*args, **kwargs)
+    end_time = time.perf_counter()
+
+    return res, end_time - start_time
+
+
 def train():
+    bucket_amount = 5
+
     males, females = prepare_data()
     # We use (about) 20% of all data and keep a minority to majority ratio of 0.25
     males, females = males[:4400], females[:1100]
     males, females = [(m, 0) for m in males], [(f, 1) for f in females]
+    combined = males + females
+    np.random.shuffle(combined)
 
-    cdf_hash = create_cdf_hash_function(males + females, 100)
-    cut_hash = create_cut_hash_function(males + females, 100, [len(males), len(females)])
+    cdf_hash, cdf_preprocesing = measure_time(
+        create_cdf_hash_function,
+        combined,
+        bucket_amount
+    )
+    cut_hash, cut_preprocessing = measure_time(
+        create_cut_hash_function,
+        combined,
+        bucket_amount,
+        [len(males), len(females)]
+    )
 
     male_sample, female_sample = males[:80], females[:20]
-    rank_100_hash = create_ranking_hash_function(
-        male_sample + female_sample,
-        100,
+    combined_sample = male_sample + female_sample
+    np.random.shuffle(combined_sample)
+
+    rank_100_hash, rank_100_preprocessing = measure_time(
+        create_ranking_hash_function,
+        combined_sample,
+        bucket_amount,
         [len(male_sample), len(female_sample)]
     )
 
-    male_sample, female_sample = males[:800], females[:200]
-    rank_1000_hash = create_ranking_hash_function(
-        male_sample + female_sample,
-        100,
-        [len(male_sample), len(female_sample)]
-    )
+    cdf_epsilon, cdf_query_time = test(cdf_hash, combined, bucket_amount, [len(males), len(females)])
+    cut_epsilon, cut_query_time = test(cut_hash, combined, bucket_amount, [len(males), len(females)])
+    rank_100_epsilon, rank_100_query_time = test(rank_100_hash, combined, bucket_amount, [len(males), len(females)])
 
-    pass
+    print(f"CDF: {cdf_epsilon=}; {cdf_preprocesing=}; {cdf_query_time=}")
+    print(f"cut: {cut_epsilon=}; {cut_preprocessing=}; {cut_query_time=}")
+    print(f"rank 100: {rank_100_epsilon=}; {rank_100_preprocessing=}; {rank_100_query_time=}")
+
+
+def test(hash_function, points, buckets_amount, group_lengths):
+    def query():
+        buckets = {i: [] for i in range(buckets_amount)}
+
+        for p in points:
+            buckets[hash_function(p[0])].append(p)
+
+        return buckets
+
+    buckets, query_time = measure_time(query)
+
+    a = get_bucket_group_matrix(list(list(bucket) for bucket in buckets.values()), group_lengths)
+    fairness = calculate_pairwise_fairness_list(a, group_lengths)
+    epsilon = calculate_epsilon(fairness, buckets_amount)
+
+    return epsilon, query_time / len(points)
 
 
 if __name__ == '__main__':
